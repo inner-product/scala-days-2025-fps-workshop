@@ -12,7 +12,7 @@ package projects.stream
 enum Stream[A] { self =>
   case Concat(left: Stream[A], right: Stream[A])
   case Map[A, B](source: Stream[A], f: A => B) extends Stream[B]
-  case Product[A, B](left: Stream[A], right: Stream[B]) extends Stream[B]
+  case Product[A, B](left: Stream[A], right: Stream[B]) extends Stream[(A, B)]
   case FlatMap[A, B](source: Stream[A], f: A => Stream[B]) extends Stream[B]
   case Pure(value: A)
   case FromIterator(value: Iterator[A])
