@@ -5,26 +5,43 @@ trait IO[Program[_]] {
   def read: Program[String]
 }
 
-trait Layout[Program] {
+trait Layout[Program[_]] {
   def and[A, B](fst: Program[A], snd: Program[B]): Program[(A, B)]
 }
 
 final case class ConsoleProgram[A](run: () => A)
 
 object ConsoleIO extends IO[ConsoleProgram] {
-  def prompt(message: String): ConsoleProgram[String] =
+  def prompt(message: String): ConsoleProgram[Unit] =
     ConsoleProgram(() =>
       println(message)
       ()
     )
+
+  def read: ConsoleProgram[String] = {
+    ConsoleProgram(() => scala.io.StdIn.readLine())
+  }
 }
-object ConsoleLayout extends IO[ConsoleProgram] {
-  // etc ...
+object ConsoleLayout extends Layout[ConsoleProgram] {
+  def and[A, B](
+      fst: ConsoleProgram[A],
+      snd: ConsoleProgram[B]
+  ): ConsoleProgram[(A, B)] = {
+    ConsoleProgram { () =>
+      val a = fst.run()
+      val b = snd.run()
+
+      (a, b)
+    }
+  }
 }
 
-def feedback[Program[_]](io: IO[Program], layout: Layout[Program]): Program[(Unit, (Unit, String))] = {
+def feedback[Program[_]](
+    io: IO[Program],
+    layout: Layout[Program]
+): Program[(Unit, (Unit, String))] = {
   layout.and(
-    io.prompt("Hello Scala Days!")
+    io.prompt("Hello Scala Days!"),
     layout.and(
       io.prompt("Are you enjoying yourself?"),
       io.read
@@ -40,18 +57,21 @@ trait Separator[Program[_]] {
 
 object ConsoleSeparator extends Separator[ConsoleProgram] {
   def rule: ConsoleProgram[Unit] =
-    println("-------------------------------------------")
+    ConsoleProgram(() => println("-------------------------------------------"))
 
   def blank: ConsoleProgram[Unit] =
-    println()
+    ConsoleProgram(() => println())
 }
 
-
-def prettyFeedback[Program[_]](sep: Separator[Program], io: IO[Program], layout: Layout[Program]) =
+def prettyFeedback[Program[_]](
+    sep: Separator[Program],
+    io: IO[Program],
+    layout: Layout[Program]
+) =
   layout.and(
-    sep.rule
+    sep.rule,
     layout.and(
-      feedback,
-      layout.rule
+      feedback(io, layout),
+      sep.rule
     )
   )
