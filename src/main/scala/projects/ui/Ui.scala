@@ -1,12 +1,53 @@
 package projects.ui
 
-trait IO[Program[_]] {
-  def prompt(message: String): Program[Unit]
-  def read: Program[String]
+trait Algebra {
+  type Ui[_]
 }
 
-trait Layout[Program[_]] {
-  def and[A, B](fst: Program[A], snd: Program[B]): Program[(A, B)]
+final case class Program[-Alg <: Algebra, A] {
+  def apply(alg: Alg): alg.Ui[A]
+}
+
+object Program {
+  def prompt(message: String): Program[IO, Unit] =
+    Program {
+      def apply(alg: IO): alg.Ui[Unit] =
+        alg.prompt(message)
+    }
+  def read: Program[IO, String] =
+    Program {
+      def apply(alg: IO): alg.Ui[String] =
+        alg.read
+    }
+  def rule: Program[Separator, Unit]
+    Program {
+      def apply(alg: Separator): alg.Ui[Unit] =
+        alg.rule
+    }
+  def blank: Program[Separator, Unit]
+    Program {
+      def apply(alg: Separator): alg.Ui[Unit] =
+        alg.blank
+    }
+}
+
+extension [Alg <: Algebra, A](program: Program[Alg, A]) {
+  def and[Alg2 <: Algebra, B](snd: Program[Alg2, B]) = {
+    type AllAlg = Alg & Alg2 & Layout, (A, B)
+    Program[AllAlg, (A, B)]{
+      def apply(alg: AllAlg): alg.Ui[(A, B)] =
+        alg.and(program, snd)
+    }
+  }
+}
+
+trait IO extends Algebra {
+  def prompt(message: String): Ui[Unit]
+  def read: Ui[String]
+}
+
+trait Layout extends Algebra {
+  def and[A, B](fst: Ui[A], snd: Ui[B]): Ui[(A, B)]
 }
 
 final case class ConsoleProgram[A](run: () => A)
@@ -36,17 +77,10 @@ object ConsoleLayout extends Layout[ConsoleProgram] {
   }
 }
 
-def feedback[Program[_]](
-    io: IO[Program],
-    layout: Layout[Program]
-): Program[(Unit, (Unit, String))] = {
-  layout.and(
-    io.prompt("Hello Scala Days!"),
-    layout.and(
-      io.prompt("Are you enjoying yourself?"),
-      io.read
-    )
-  )
+val feedback: Program[IO & Layout, (Unit, (Unit, String))] = {
+  Program.prompt("Hello Scala Days!")
+    .and(Program.prompt("Are you enjoying yourself?"))
+    .and(Program.read)
 }
 
 trait Separator[Program[_]] {
@@ -63,15 +97,5 @@ object ConsoleSeparator extends Separator[ConsoleProgram] {
     ConsoleProgram(() => println())
 }
 
-def prettyFeedback[Program[_]](
-    sep: Separator[Program],
-    io: IO[Program],
-    layout: Layout[Program]
-) =
-  layout.and(
-    sep.rule,
-    layout.and(
-      feedback(io, layout),
-      sep.rule
-    )
-  )
+val prettyFeedback =
+  Program.rule.and(feedback).and(Program.rule)
