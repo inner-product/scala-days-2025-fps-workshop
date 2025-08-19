@@ -1,7 +1,7 @@
 package projects.stream
 
 trait Program[A] {
-  protected def next: Option[A]
+  def next: Option[A]
 
   def toList: List[A] = {
     def loop(): List[A] =
